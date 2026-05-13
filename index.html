@@ -155,28 +155,30 @@
         height: 'auto',
         editable: false,
         selectable: false,
-        
-        // 🔹 NEW: Force 24-hour time format on event badges
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
-        
-        // ✅ Your working async pattern (unchanged)
+
         events: async function(fetchInfo) {
           try {
+            if (!cachedRawEvents) {
             const res = await fetch('events.json?t=' + Date.now());
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            
             const raw = await res.json();
-            const eventsArray = Array.isArray(raw) ? raw : [raw];
+            cachedRawEvents = Array.isArray(raw) ? raw : [raw];
+            }
 
-            const colorMap = {
+            const typeConfig = {
               visitor:    { backgroundColor: '#22c55e', borderColor: '#16a34a', textColor: '#fff' },
               seminar:    { backgroundColor: '#ef4444', borderColor: '#dc2626', textColor: '#fff' },
               conference: { backgroundColor: '#3b82f6', borderColor: '#2563eb', textColor: '#fff' }
             };
 
-            return eventsArray.map(ev => {
+            const filtered = currentFilter === 'all' 
+            ? cachedRawEvents 
+            : cachedRawEvents.filter(ev => (ev.type || '').toLowerCase() === currentFilter);
+
+            return filtered.map(ev => {
               const t = (ev.type || 'conference').toLowerCase();
-              return { ...ev, ...colorMap[t] };
+              return { ...ev, ...typeConfig[t] };
             });
           } catch (err) {
             console.error('❌ Calendar fetch failed:', err);
@@ -184,7 +186,6 @@
           }
         },
         
-        // 🔹 NEW: Click handler to open modal with event details
         eventClick: function(info) {
           info.jsEvent.preventDefault();
           openModal(info.event);
