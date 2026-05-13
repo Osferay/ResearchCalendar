@@ -1,0 +1,13 @@
+[
+  {
+    "title": "Group Meeting",
+    "start": "2026-05-20T14:00:00",
+    "end": "2026-05-20T15:30:00",
+    "description": "Weekly sync in Lab 3B"
+  },
+  {
+    "title": "Guest Lecture: Dr. Smith",
+    "start": "2026-05-22",
+    "description": "Topic: AI in Research | Room 204"
+  }
+]
