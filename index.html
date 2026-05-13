@@ -39,6 +39,17 @@
     <div id="calendar"></div>
   </div>
 
+  <!-- Event Details Modal -->
+  <div id="event-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:2000; justify-content:center; align-items:center;">
+    <div style="background:white; padding:2rem; border-radius:8px; max-width:420px; width:90%; position:relative; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+      <button onclick="closeModal()" style="position:absolute; top:10px; right:10px; background:none; border:none; font-size:1.5rem; cursor:pointer; color:#666;">&times;</button>
+      <h3 id="modal-title" style="margin-top:0; color:#111;"></h3>
+      <p style="margin:0.5rem 0;"><strong>Type:</strong> <span id="modal-type" style="color:#555;"></span></p>
+      <p style="margin:0.5rem 0;"><strong>Time:</strong> <span id="modal-time" style="color:#555;"></span></p>
+      <p style="margin:0.5rem 0;"><strong>Details:</strong> <span id="modal-desc" style="color:#555;"></span></p>
+    </div>
+  </div>
+
   <script>
     // ⚙️ REPLACE THIS WITH YOUR OWN SHA-256 HASH
     // Generate it in browser console: 
@@ -70,6 +81,32 @@
       loadCalendar();
     }
 
+    function openModal(fcEvent) {
+      document.getElementById('modal-title').textContent = fcEvent.title;
+      const type = fcEvent.extendedProps.type || 'N/A';
+      document.getElementById('modal-type').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    
+      const fmt = { hour: '2-digit', minute: '2-digit', hour12: false };
+      const startStr = fcEvent.start ? fcEvent.start.toLocaleTimeString([], fmt) : '';
+      const endStr = fcEvent.end ? fcEvent.end.toLocaleTimeString([], fmt) : null;
+      document.getElementById('modal-time').textContent = endStr ? `${startStr} - ${endStr}` : startStr;
+      
+      document.getElementById('modal-desc').textContent = fcEvent.extendedProps.description || 'No additional details.';
+      document.getElementById('event-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('event-modal').style.display = 'none';
+    }
+
+    document.getElementById('event-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'event-modal') closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
     function loadCalendar() {
       const calendarEl = document.getElementById('calendar');
       const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -79,14 +116,16 @@
         editable: false,
         selectable: false,
         
-        // ✅ Modern async pattern (FullCalendar v6 native)
+        // 🔹 NEW: Force 24-hour time format on event badges
+        eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+        
+        // ✅ Your working async pattern (unchanged)
         events: async function(fetchInfo) {
           try {
             const res = await fetch('events.json?t=' + Date.now());
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             
             const raw = await res.json();
-            // Ensure we always work with an array
             const eventsArray = Array.isArray(raw) ? raw : [raw];
 
             const colorMap = {
@@ -101,8 +140,13 @@
             });
           } catch (err) {
             console.error('❌ Calendar fetch failed:', err);
-            return []; // Fallback to empty array so calendar doesn't break
+            return [];
           }
+        },
+        
+        // 🔹 NEW: Click handler to open modal with event details
+        eventClick: function(info) {
+          openModal(info.event);
         }
       });
       calendar.render();
