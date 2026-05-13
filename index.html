@@ -78,14 +78,29 @@
         height: 'auto',
         editable: false,
         selectable: false,
-        // Cache-bust so new commits appear without hard refresh
         events: function(fetchInfo, successCallback, failureCallback) {
           fetch('events.json?t=' + Date.now())
             .then(res => {
               if (!res.ok) throw new Error('Failed to load events');
               return res.json();
             })
-            .then(events => successCallback(events))
+            .then(events => {
+              // 🔹 Type-to-Color Mapping
+              const colorMap = {
+                visitor:    { bg: '#22c55e', border: '#16a34a', text: '#ffffff' },
+                seminar:    { bg: '#ef4444', border: '#dc2626', text: '#ffffff' },
+                conference: { bg: '#3b82f6', border: '#2563eb', text: '#ffffff' }
+              };
+
+              // Apply colors based on event type
+              const formatted = events.map(ev => {
+                const t = (ev.type || 'conference').toLowerCase();
+                const c = colorMap[t] || colorMap.conference; // defaults to blue if type is missing/invalid
+                return { ...ev, backgroundColor: c.bg, borderColor: c.border, textColor: c.text };
+              });
+
+              successCallback(formatted);
+            })
             .catch(err => failureCallback(err));
         }
       });
