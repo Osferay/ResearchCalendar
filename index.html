@@ -34,6 +34,17 @@
     </div>
   </div>
 
+  <!-- Type Filter -->
+  <div style="max-width: 1000px; margin: 0 auto 12px; text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+    <label for="type-filter" style="font-weight: 500; font-size: 14px; color: #333;">Filter by type:</label>
+    <select id="type-filter" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; background: #fff; cursor: pointer;">
+      <option value="all">All Events</option>
+      <option value="visitor">Visitors</option>
+      <option value="seminar">Seminars</option>
+      <option value="conference">Conferences</option>
+    </select>
+  </div>
+
   <!-- Calendar -->
   <div id="calendar-container">
     <div id="calendar"></div>
@@ -133,6 +144,9 @@
       if (e.key === 'Escape') closeModal();
     });
 
+    let currentFilter = 'all';
+    let cachedRawEvents = null;
+
     function loadCalendar() {
       const calendarEl = document.getElementById('calendar');
       const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -172,10 +186,16 @@
         
         // 🔹 NEW: Click handler to open modal with event details
         eventClick: function(info) {
+          info.jsEvent.preventDefault();
           openModal(info.event);
         }
       });
       calendar.render();
+
+      document.getElementById('type-filter').addEventListener('change', function() {
+        currentFilter = this.value;
+        calendar.refetchEvents(); // Triggers the events() function again with new filter
+      });
     }
   </script>
 </body>

@@ -67,5 +67,13 @@
     "end": "2026-06-12T18:00:00",
     "type": "conference",
     "location": "Halle"
+  },
+  {
+    "title": "Geometric group theory",
+    "start": "2026-06-29T09:00:00",
+    "end": "2026-07-03T15:00:00",
+    "type": "conference",
+    "location": "Santander (Spain)",
+    "url": "https://sites.google.com/view/xxv-escuela-santalo-2026/home?authuser=1"
   }
 ]
