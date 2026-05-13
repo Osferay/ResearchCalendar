@@ -104,17 +104,17 @@
       const endStr = fcEvent.end ? fcEvent.end.toLocaleTimeString([], fmt) : null;
       document.getElementById('modal-time').textContent = endStr ? `${startStr} - ${endStr}` : startStr;
       
-      // 🔹 Location: Show for seminar & conference only
+      // Location: Show for seminar & conference only
       const locationEl = document.getElementById('modal-location');
       const location = fcEvent.extendedProps.location;
       const isSeminarOrConf = ['seminar', 'conference'].includes(type.toLowerCase());
       locationEl.textContent = isSeminarOrConf && location ? location : 'N/A';
       locationEl.style.color = isSeminarOrConf && location ? '#555' : '#999';
       
-      // 🔹 Details + URL (conference only): URL appears as clickable link INSIDE details
+      // 🔹 FIXED: URL is a standard property, access via fcEvent.url (NOT extendedProps)
       const descEl = document.getElementById('modal-desc');
       const description = fcEvent.extendedProps.description || 'No additional details.';
-      const url = fcEvent.extendedProps.url;
+      const url = fcEvent.url;  // ✅ Correct: standard FullCalendar property
       const isConference = type.toLowerCase() === 'conference';
       
       if (isConference && url) {
