@@ -78,30 +78,31 @@
         height: 'auto',
         editable: false,
         selectable: false,
-        events: function(fetchInfo, successCallback, failureCallback) {
-          fetch('events.json?t=' + Date.now())
-            .then(res => {
-              if (!res.ok) throw new Error('Failed to load events');
-              return res.json();
-            })
-            .then(events => {
-              // 🔹 Type-to-Color Mapping
-              const colorMap = {
-                visitor:    { bg: '#22c55e', border: '#16a34a', text: '#ffffff' },
-                seminar:    { bg: '#ef4444', border: '#dc2626', text: '#ffffff' },
-                conference: { bg: '#3b82f6', border: '#2563eb', text: '#ffffff' }
-              };
+        
+        // ✅ Modern async pattern (FullCalendar v6 native)
+        events: async function(fetchInfo) {
+          try {
+            const res = await fetch('events.json?t=' + Date.now());
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            
+            const raw = await res.json();
+            // Ensure we always work with an array
+            const eventsArray = Array.isArray(raw) ? raw : [raw];
 
-              // Apply colors based on event type
-              const formatted = events.map(ev => {
-                const t = (ev.type || 'conference').toLowerCase();
-                const c = colorMap[t] || colorMap.conference; // defaults to blue if type is missing/invalid
-                return { ...ev, backgroundColor: c.bg, borderColor: c.border, textColor: c.text };
-              });
+            const colorMap = {
+              visitor:    { backgroundColor: '#22c55e', borderColor: '#16a34a', textColor: '#fff' },
+              seminar:    { backgroundColor: '#ef4444', borderColor: '#dc2626', textColor: '#fff' },
+              conference: { backgroundColor: '#3b82f6', borderColor: '#2563eb', textColor: '#fff' }
+            };
 
-              successCallback(formatted);
-            })
-            .catch(err => failureCallback(err));
+            return eventsArray.map(ev => {
+              const t = (ev.type || 'conference').toLowerCase();
+              return { ...ev, ...colorMap[t] };
+            });
+          } catch (err) {
+            console.error('❌ Calendar fetch failed:', err);
+            return []; // Fallback to empty array so calendar doesn't break
+          }
         }
       });
       calendar.render();
