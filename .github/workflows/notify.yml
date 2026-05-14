@@ -1,0 +1,101 @@
+name: Notify New Events
+
+on:
+  push:
+    branches: [main]
+    paths: ['events.json']  # Only trigger when events file changes
+
+jobs:
+  send-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (with history for diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Get last 2 commits to compare
+
+      - name: Setup jq for JSON parsing
+        run: sudo apt-get install -y jq
+
+      - name: Extract newly added events
+        id: new-events
+        run: |
+          # Get current events
+          CURRENT=$(jq -c '.' events.json)
+          
+          # Try to get previous version
+          if git show HEAD~1:events.json &>/dev/null; then
+            PREVIOUS=$(git show HEAD~1:events.json | jq -c '.')
+            # Find events in CURRENT not in PREVIOUS (by title+start as unique key)
+            NEW=$(echo "$CURRENT" | jq -c --argjson prev "$PREVIOUS" '
+              [.[] | select(
+                . as $e | 
+                ($prev | map(.title + .start) | index($e.title + $e.start) | not)
+              )]
+            ')
+          else
+            # First commit: all events are "new"
+            NEW="$CURRENT"
+          fi
+          
+          # Output for next steps
+          echo "events=$NEW" >> $GITHUB_OUTPUT
+          echo "count=$(echo $NEW | jq 'length')" >> $GITHUB_OUTPUT
+          
+          # Debug: print to workflow log (secrets redacted automatically)
+          echo "📊 Found $(echo $NEW | jq 'length') new event(s)"
+
+      - name: Send email for each new event
+        if: steps.new-events.outputs.count != '0' && steps.new-events.outputs.count != 'null'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # 🔹 Google SMTP settings
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          
+          # 🔹 Email headers
+          subject: "📅 New Event Added: Research Group Calendar"
+          to: ${{ secrets.RECIPIENT_EMAIL }}
+          from: "${{ secrets.GMAIL_USER }}"
+          reply_to: "${{ secrets.GMAIL_USER }}"
+          
+          # 🔹 Plain text body (fallback)
+          body: |
+            A new event has been added to the Research Group Calendar.
+            
+            ${{ fromJSON(steps.new-events.outputs.events)[0].title }}
+            When: ${{ fromJSON(steps.new-events.outputs.events)[0].start }}
+            Type: ${{ fromJSON(steps.new-events.outputs.events)[0].type }}
+            Location: ${{ fromJSON(steps.new-events.outputs.events)[0].location || 'N/A' }}
+            
+            👉 View calendar: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+            
+            — Research Group Calendar Bot
+
+          # 🔹 HTML body (rich formatting)
+          html_body: |
+            <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+              <h2 style="color: #1a73e8; border-bottom: 2px solid #e8f0fe; padding-bottom: 8px;">📅 New Event Added</h2>
+              
+              <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <p style="margin: 0 0 8px;"><strong>Title:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].title }}</p>
+                <p style="margin: 0 0 8px;"><strong>When:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].start }}</p>
+                <p style="margin: 0 0 8px;"><strong>Type:</strong> <span style="background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 4px; font-size: 13px;">${{ fromJSON(steps.new-events.outputs.events)[0].type }}</span></p>
+                <p style="margin: 0 0 8px;"><strong>Location:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].location || 'N/A' }}</p>
+                <p style="margin: 0;"><strong>Details:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].description || 'No additional details.' }}</p>
+              </div>
+              
+              <p style="text-align: center; margin: 24px 0;">
+                <a href="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" 
+                   style="background: #1a73e8; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500;">
+                  👉 View Calendar & Add to Yours
+                </a>
+              </p>
+              
+              <p style="color: #666; font-size: 12px; border-top: 1px solid #eee; padding-top: 16px;">
+                You're receiving this because you're on the research group notification list.
+                <br>Calendar powered by GitHub Pages • <a href="https://github.com/${{ github.repository }}">Source</a>
+              </p>
+            </div>
