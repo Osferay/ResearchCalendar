@@ -75,5 +75,21 @@
     "type": "conference",
     "location": "Santander (Spain)",
     "url": "https://sites.google.com/view/xxv-escuela-santalo-2026/home?authuser=1"
+  },
+  {
+    "title": "Latest Trends in Algebra and Geometry",
+    "start": "2026-06-29T09:00:00",
+    "end": "2026-07-01T15:00:00",
+    "type": "conference",
+    "location": "Essex (England)",
+    "url": "https://www.newton.ac.uk/event/ggiw01/"
+  },
+  {
+    "title": "AGGITatE 2026",
+    "start": "2026-07-22T09:30:00",
+    "end": "2026-07-24T14:30:00",
+    "type": "conference",
+    "location": "Essex (England)",
+    "url": "https://www.newton.ac.uk/event/ggiw02/"
   }
 ]
