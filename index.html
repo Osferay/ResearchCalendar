@@ -62,11 +62,17 @@
     </div>
   </div>
 
+  <!-- Add to calendar-->
+  <p style="margin:0.5rem 0;" id="modal-add-to-cal" style="display:none;">
+    <a href="#" id="ics-download" download style="display:inline-flex; align-items:center; gap:6px; padding:8px 12px; background:#2563eb; color:white; border-radius:6px; text-decoration:none; font-weight:500; font-size:14px;">
+      📅 Add to Calendar
+    </a>
+  </p>
+
   <script>
-    // ⚙️ REPLACE THIS WITH YOUR OWN SHA-256 HASH
     // Generate it in browser console: 
     // crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_PASSWORD')).then(h => console.log([...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')))
-    const CORRECT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"; // default: "password"
+    const CORRECT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"; // 
 
     async function sha256(str) {
       const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
@@ -111,7 +117,6 @@
       locationEl.textContent = isSeminarOrConf && location ? location : 'N/A';
       locationEl.style.color = isSeminarOrConf && location ? '#555' : '#999';
       
-      // 🔹 FIXED: URL is a standard property, access via fcEvent.url (NOT extendedProps)
       const descEl = document.getElementById('modal-desc');
       const description = fcEvent.extendedProps.description || 'No additional details.';
       const url = fcEvent.url;  // ✅ Correct: standard FullCalendar property
@@ -128,6 +133,24 @@
       } else {
         descEl.textContent = description;
       }
+
+      const addToCalRow = document.getElementById('modal-add-to-cal');
+      const icsLink = document.getElementById('ics-download');
+  
+      const icsContent = generateICS(fcEvent);
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const icsURL = URL.createObjectURL(blob);
+  
+      const safeTitle = fcEvent.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const filename = `${safeTitle}.ics`;
+  
+      icsLink.href = icsURL;
+      icsLink.download = filename;
+      addToCalRow.style.display = 'block'; // Show the row
+  
+      icsLink.addEventListener('click', () => {
+        setTimeout(() => URL.revokeObjectURL(icsURL), 100);
+      });
       
       document.getElementById('event-modal').style.display = 'flex';
     }
@@ -146,6 +169,36 @@
 
     let currentFilter = 'all';
     let cachedRawEvents = null;
+
+    // 📄 Generate ICS file content for a given event
+    function generateICS(event) {
+      const fmt = (d) => d ? d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z' : '';
+  
+      // Fallback: if no end time, make it a 1-hour event
+      const start = event.start instanceof Date ? event.start : new Date(event.start);
+      const end = event.end instanceof Date ? event.end : (event.end ? new Date(event.end) : new Date(start.getTime() + 60*60*1000));
+  
+      const uid = `${event.title.replace(/\s+/g, '')}-${start.getTime()}@research-group`;
+      const description = (event.extendedProps.description || '').replace(/\n/g, '\\n');
+      const location = (event.extendedProps.location || '').replace(/\n/g, '\\n');
+      const url = event.url || '';
+  
+      return `BEGIN:VCALENDAR
+      VERSION:2.0
+      PRODID:-//Research Group Calendar//EN
+      CALSCALE:GREGORIAN
+      METHOD:PUBLISH
+      BEGIN:VEVENT
+      UID:${uid}
+      DTSTAMP:${fmt(new Date())}
+      DTSTART:${fmt(start)}
+      DTEND:${fmt(end)}
+      SUMMARY:${event.title}
+      DESCRIPTION:${description}${url ? '\\n\\n🔗 ' + url : ''}
+      LOCATION:${location}
+      END:VEVENT
+      END:VCALENDAR`;
+    }
 
     function loadCalendar() {
       const calendarEl = document.getElementById('calendar');
@@ -181,7 +234,7 @@
               return { ...ev, ...typeConfig[t] };
             });
           } catch (err) {
-            console.error('❌ Calendar fetch failed:', err);
+            console.error(' Calendar fetch failed:', err);
             return [];
           }
         },
@@ -195,7 +248,7 @@
 
       document.getElementById('type-filter').addEventListener('change', function() {
         currentFilter = this.value;
-        calendar.refetchEvents(); // Triggers the events() function again with new filter
+        calendar.refetchEvents(); 
       });
     }
   </script>
