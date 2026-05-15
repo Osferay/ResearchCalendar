@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Research Group Calendar</title>
+  <title>Eick Group Calendar</title>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <style>
@@ -63,7 +63,7 @@
       <!-- Add to calendar-->
       <p style="margin:0.5rem 0; display:none;" id="modal-add-to-cal" >
         <a href="#" id="ics-download" download style="display:inline-flex; align-items:center; gap:6px; padding:8px 12px; background:#2563eb; color:white; border-radius:6px; text-decoration:none; font-weight:500; font-size:14px;">
-          📅 Add to Calendar
+          Add to Calendar
         </a>
       </p>
 
@@ -148,7 +148,6 @@
       const type = fcEvent.extendedProps.type || 'N/A';
       document.getElementById('modal-type').textContent = type.charAt(0).toUpperCase() + type.slice(1);
       
-      // 🔹 NEW: Format dates & times as "from DD-MM-YYYY at H:MM to DD-MM-YYYY at H:MM"
       function formatDateTime(dateObj, showTime = true) {
         if (!dateObj) return '';
         const d = dateObj instanceof Date ? dateObj : new Date(dateObj);
@@ -178,7 +177,6 @@
       }
       document.getElementById('modal-time').textContent = whenText || 'Date not specified';
       
-      // Location: Show for seminar & conference only
       const locationEl = document.getElementById('modal-location');
       const location = fcEvent.extendedProps.location;
       const isSeminarOrConf = ['seminar', 'conference'].includes(type.toLowerCase());
@@ -190,14 +188,20 @@
       const url = fcEvent.url;
       const isConference = type.toLowerCase() === 'conference';
       
-      if (isConference && url) {
-        descEl.innerHTML = `
-          ${description}
-          <br><a href="${url}" target="_blank" rel="noopener" 
-            style="display:inline-block; margin-top:0.4rem; color:#2563eb; text-decoration:none; font-weight:500;">
-            🔗 ${url.replace(/^https?:\/\//, '')}
-          </a>
-        `;
+      if (isConference) {
+        let html = description;
+
+        const attList = fcEvent.extendedProps.attendants;
+        if (Array.isArray(attList) && attList.length > 0) {
+          html += `<br><strong>Attendants:</strong> ${attList.join(', ')}`;
+        }
+
+        const url = fcEvent.url
+        if (url){
+          html += `<br><a href="${url}" target="_blank" rel="noopener" style="display:inline-block; margin-top:0.4rem; color:#2563eb; text-decoration:none; font-weight:500;">${url.replace(/^https?:\/\//, '')}</a>`;
+        }
+
+        descEl.innerHTML = html;
       } else {
         descEl.textContent = description;
       }
@@ -291,19 +295,26 @@ END:VCALENDAR`;
               console.log(`✅ Decrypted ${cachedRawEvents.length} events`);
             }
 
-            const typeConfig = {
-              visitor:    { backgroundColor: '#22c55e', borderColor: '#16a34a', textColor: '#fff' },
-              seminar:    { backgroundColor: '#ef4444', borderColor: '#dc2626', textColor: '#fff' },
-              conference: { backgroundColor: '#3b82f6', borderColor: '#2563eb', textColor: '#fff' }
-            };
-
             const filtered = currentFilter === 'all' 
               ? cachedRawEvents 
               : cachedRawEvents.filter(ev => (ev.type || '').toLowerCase() === currentFilter);
 
             return filtered.map(ev => {
               const t = (ev.type || 'conference').toLowerCase();
-              return { ...ev, ...typeConfig[t] };
+              let colors;
+
+              if (t === 'conference') {
+                const hasAttendants = Array.isArray(ev.attendants) && ev.attendants.length > 0;
+                colors = hasAttendants
+                  ? { backgroundColor: '#3b82f6', borderColor: '#2563eb', textColor: '#fff' }
+                  : { backgroundColor: '#eab308', borderColor: '#ca8a04', textColor: '#fff' };
+              } else if (t === 'seminar') {
+                colors = { backgroundColor: '#ef4444', borderColor: '#dc2626', textColor: '#fff' };
+              } else {
+                colors = { backgroundColor: '#22c55e', borderColor: '#16a34a', textColor: '#fff' };
+              }
+
+              return { ...ev, ...colors };
             });
           } catch (err) {
             console.error('❌ Calendar load failed:', err);

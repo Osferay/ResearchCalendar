@@ -92,26 +92,26 @@ jobs:
           server_port: 587
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "📅 New Event: ${{ steps.payload.outputs.title }}"
+          subject: "New Event: ${{ steps.payload.outputs.title }}"
           to: ${{ secrets.RECIPIENT_EMAIL }}
-          from: "Research Group Calendar <${{ secrets.GMAIL_USER }}>"
+          from: "Eick Group Calendar <${{ secrets.GMAIL_USER }}>"
           reply_to: "${{ secrets.GMAIL_USER }}"
           
           body: |
-            A new event has been added to the Research Group Calendar.
+            A new event has been added to the Group Calendar.
             
             ${{ steps.payload.outputs.title }}
             Type: ${{ steps.payload.outputs.type }}
             When: ${{ steps.payload.outputs.when }}
             Location: ${{ steps.payload.outputs.location }}
             
-            👉 View & Add to Calendar: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+            View calendar: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
             
             — Calendar Bot
 
           html_body: |
             <div style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
-              <h2 style="color:#1a73e8;border-bottom:2px solid #e8f0fe;padding-bottom:8px">📅 New Event Added</h2>
+              <h2 style="color:#1a73e8;border-bottom:2px solid #e8f0fe;padding-bottom:8px">New Event Added</h2>
               <div style="background:#f8f9fa;padding:16px;border-radius:8px;margin:16px 0">
                 <p style="margin:0 0 8px"><strong>Title:</strong> ${{ steps.payload.outputs.title }}</p>
                 <p style="margin:0 0 8px"><strong>When:</strong> ${{ steps.payload.outputs.when }}</p>
@@ -122,7 +122,7 @@ jobs:
               <p style="text-align:center;margin:24px 0">
                 <a href="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" 
                    style="background:#1a73e8;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:500">
-                  👉 View Calendar & Add to Yours
+                  View calendar
                 </a>
               </p>
               <p style="color:#666;font-size:12px;border-top:1px solid #eee;padding-top:16px">
