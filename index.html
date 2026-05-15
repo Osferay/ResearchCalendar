@@ -58,7 +58,11 @@
       <p style="margin:0.5rem 0;"><strong>Type:</strong> <span id="modal-type" style="color:#555;"></span></p>
       <p style="margin:0.5rem 0;"><strong>When:</strong> <span id="modal-time" style="color:#555;"></span></p>
       <p style="margin:0.5rem 0;"><strong>Location:</strong> <span id="modal-location" style="color:#555;"></span></p>
-      <p style="margin:0.5rem 0;"><strong>Details:</strong> <span id="modal-desc" style="color:#555;"></span></p>
+
+      <div id="modal-conference-extra" style="margin-top: 0.5rem; display: none; border-top: 1px solid #eee; padding-top: 0.5rem;">
+        <p style="margin:0.5rem 0;" id="modal-attendants"><strong>Attendants:</strong> <span style="color:#555;"></span></p>
+        <p style="margin:0.5rem 0;" id="modal-url"><strong>Link:</strong> <a id="modal-url-link" href="#" target="_blank" rel="noopener" style="color:#2563eb;"></a></p>
+      </div>
 
       <!-- Add to calendar-->
       <p style="margin:0.5rem 0; display:none;" id="modal-add-to-cal" >
@@ -183,27 +187,29 @@
       locationEl.textContent = isSeminarOrConf && location ? location : 'N/A';
       locationEl.style.color = isSeminarOrConf && location ? '#555' : '#999';
       
-      const descEl = document.getElementById('modal-desc');
-      const description = fcEvent.extendedProps.description || 'No additional details.';
-      const url = fcEvent.url;
+      const confExtra = document.getElementById('modal-conference-extra');
       const isConference = type.toLowerCase() === 'conference';
+      confExtra.style.display = isConference ? 'block' : 'none';
       
       if (isConference) {
-        let html = description;
-
         const attList = fcEvent.extendedProps.attendants;
+        const attRow = document.getElementById('modal-attendants');
         if (Array.isArray(attList) && attList.length > 0) {
-          html += `<br><strong>Attendants:</strong> ${attList.join(', ')}`;
+          attRow.querySelector('span').textContent = attList.join(', ');
+          attRow.style.display = 'block';
+        } else {
+          attRow.style.display = 'none';
         }
 
-        const url = fcEvent.url
-        if (url){
-          html += `<br><a href="${url}" target="_blank" rel="noopener" style="display:inline-block; margin-top:0.4rem; color:#2563eb; text-decoration:none; font-weight:500;">${url.replace(/^https?:\/\//, '')}</a>`;
+        const urlRow = document.getElementById('modal-url');
+        const urlLink = document.getElementById('modal-url-link');
+        if (fcEvent.url) {
+          urlLink.href = fcEvent.url;
+          urlLink.textContent = fcEvent.url.replace(/^https?:\/\//, '');
+          urlRow.style.display = 'block';
+        } else {
+          urlRow.style.display = 'none';
         }
-
-        descEl.innerHTML = html;
-      } else {
-        descEl.textContent = description;
       }
 
       const addToCalRow = document.getElementById('modal-add-to-cal');
@@ -265,7 +271,7 @@ DTSTAMP:${fmt(new Date())}
 DTSTART:${fmt(start)}
 DTEND:${fmt(end)}
 SUMMARY:${event.title}
-DESCRIPTION:${description}${url ? '\\n\\n🔗 ' + url : ''}
+DESCRIPTION:${description}${url ? '\\n\\n' + url : ''}
 LOCATION:${location}
 END:VEVENT
 END:VCALENDAR`;
