@@ -72,16 +72,21 @@ jobs:
             };
             
             const when = ev.end ? \`\${fmt(ev.start)} to \${fmt(ev.end)}\` : fmt(ev.start);
+            const type = (ev.type || '').toLowerCase();
+
+            const attendants = (type === 'conference' && Array.isArray(ev.attendants) && ev.attendants.length > 0)
+              ? ev.attendants.join(', ')
+              : '';
+            const url = (type === 'conference' && ev.url) ? ev.url : '';
             
-            // 🔹 Output via \$GITHUB_OUTPUT (modern syntax)
             const out = process.env.GITHUB_OUTPUT;
             fs.appendFileSync(out, \`count=\${added.length}\\n\`);
-            fs.appendFileSync(out, \`title=\${ev.title.replace(/:/g,'')}\\n\`);
+            fs.appendFileSync(out, \`title=\${(ev.title||'').replace(/:/g,'')}\\n\`);
             fs.appendFileSync(out, \`type=\${ev.type}\\n\`);
             fs.appendFileSync(out, \`when=\${when}\\n\`);
             fs.appendFileSync(out, \`location=\${(ev.location||'TBA').replace(/:/g,'')}\\n\`);
-            fs.appendFileSync(out, \`description=\${(ev.description||'No additional details.').replace(/:/g,'')}\\n\`);
-            fs.appendFileSync(out, \`start_raw=\${ev.start}\\n\`);
+            fs.appendFileSync(out, \`attendants=\${attendants.replace(/:/g,'')}\\n\`);
+            fs.appendFileSync(out, \`url=\${url.replace(/:/g,'')}\\n\`);
           "
 
       - name: Send email
@@ -104,6 +109,8 @@ jobs:
             Type: ${{ steps.payload.outputs.type }}
             When: ${{ steps.payload.outputs.when }}
             Location: ${{ steps.payload.outputs.location }}
+            ${{ steps.payload.outputs.attendants && format('Attendants: {0}', steps.payload.outputs.attendants) }}
+            ${{ steps.payload.outputs.url && format('Link: {0}', steps.payload.outputs.url) }}
             
             View calendar: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
             
@@ -118,6 +125,8 @@ jobs:
                 <p style="margin:0 0 8px"><strong>Type:</strong> <span style="background:#e8f0fe;color:#1a73e8;padding:2px 8px;border-radius:4px;font-size:13px">${{ steps.payload.outputs.type }}</span></p>
                 <p style="margin:0 0 8px"><strong>Location:</strong> ${{ steps.payload.outputs.location }}</p>
                 <p style="margin:0"><strong>Details:</strong> ${{ steps.payload.outputs.description }}</p>
+                ${{ steps.payload.outputs.attendants && format('<p style="margin:0 0 8px"><strong>Attendants:</strong> {0}</p>', steps.payload.outputs.attendants) }}
+                ${{ steps.payload.outputs.url && format('<p style="margin:0"><strong>Link:</strong> <a href="{0}" style="color:#1a73e8">{0}</a></p>', steps.payload.outputs.url) }}
               </div>
               <p style="text-align:center;margin:24px 0">
                 <a href="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" 
@@ -126,6 +135,6 @@ jobs:
                 </a>
               </p>
               <p style="color:#666;font-size:12px;border-top:1px solid #eee;padding-top:16px">
-                You're receiving this because you're on the research group notification list.
+                You are receiving this notification as a member of the research group.
               </p>
             </div>
