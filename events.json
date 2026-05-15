@@ -91,5 +91,12 @@
     "type": "conference",
     "location": "Essex (England)",
     "url": "https://www.newton.ac.uk/event/ggiw02/"
+  },
+  {
+    "title": "Bettina in Japan",
+    "start": "2026-05-21T09:30:00",
+    "end": "2026-05-30T14:30:00",
+    "type": "visitor",
+    "location": "Japan"
   }
 ]
