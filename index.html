@@ -73,6 +73,43 @@
   
 
   <script>
+
+    // 🔓 Browser-safe hex to bytes converter
+    function hexToBytes(hex) {
+      const bytes = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+      }
+      return bytes;
+    }
+
+    // 🔓 AES-256-GCM decryption using Web Crypto API
+    async function decryptEvents(password, payload) {
+      const salt = hexToBytes(payload.salt);
+      const iv = hexToBytes(payload.iv);
+      // Web Crypto expects auth tag appended to ciphertext
+      const ciphertext = hexToBytes(payload.encrypted + payload.authTag);
+
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+      );
+
+      const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv, tagLength: 128 },
+        key,
+        ciphertext
+      );
+
+      return JSON.parse(new TextDecoder().decode(decrypted));
+    }
     // Generate it in browser console: 
     // crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_PASSWORD')).then(h => console.log([...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')))
     const CORRECT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"; // 
@@ -82,10 +119,13 @@
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    let sessionPassword = null; // 🔹 Stores raw password temporarily for decryption
+
     async function checkPassword() {
       const input = document.getElementById("pass-input").value;
       const hash = await sha256(input);
       if (hash === CORRECT_HASH) {
+        sessionPassword = input; // 🔹 Save for decryption
         sessionStorage.setItem("calendar_auth", "granted");
         document.getElementById("password-overlay").style.display = "none";
         document.getElementById("calendar-container").style.display = "block";
@@ -198,7 +238,6 @@
     let currentFilter = 'all';
     let cachedRawEvents = null;
 
-    // 📄 Generate ICS file content for a given event
     function generateICS(event) {
       const fmt = (d) => d ? d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z' : '';
   
@@ -241,10 +280,15 @@ END:VCALENDAR`;
         events: async function(fetchInfo) {
           try {
             if (!cachedRawEvents) {
-            const res = await fetch('events.json?t=' + Date.now());
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const raw = await res.json();
-            cachedRawEvents = Array.isArray(raw) ? raw : [raw];
+              // 🔹 Fetch encrypted file instead of plaintext
+              const res = await fetch('events.enc.json?t=' + Date.now());
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const payload = await res.json();
+
+              if (!sessionPassword) throw new Error('Password required for decryption');
+              const raw = await decryptEvents(sessionPassword, payload);
+              cachedRawEvents = Array.isArray(raw) ? raw : [raw];
+              console.log(`✅ Decrypted ${cachedRawEvents.length} events`);
             }
 
             const typeConfig = {
@@ -254,15 +298,15 @@ END:VCALENDAR`;
             };
 
             const filtered = currentFilter === 'all' 
-            ? cachedRawEvents 
-            : cachedRawEvents.filter(ev => (ev.type || '').toLowerCase() === currentFilter);
+              ? cachedRawEvents 
+              : cachedRawEvents.filter(ev => (ev.type || '').toLowerCase() === currentFilter);
 
             return filtered.map(ev => {
               const t = (ev.type || 'conference').toLowerCase();
               return { ...ev, ...typeConfig[t] };
             });
           } catch (err) {
-            console.error(' Calendar fetch failed:', err);
+            console.error('❌ Calendar load failed:', err);
             return [];
           }
         },
