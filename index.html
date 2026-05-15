@@ -112,7 +112,7 @@
     }
     // Generate it in browser console: 
     // crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_PASSWORD')).then(h => console.log([...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')))
-    const CORRECT_HASH = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"; // 
+    const CORRECT_HASH = "c6f89174e05a4cff2ad61db84a2530310cea727e359933de5fabab01b582eacf"; // 
 
     async function sha256(str) {
       const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
