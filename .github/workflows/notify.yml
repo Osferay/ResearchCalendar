@@ -47,11 +47,13 @@ jobs:
             }
             
             const newEvents = decryptFile('events.enc.json');
+            console.log(\`📊 Old events: \${oldEvents.length} | New events: \${newEvents.length}\`);
             
             // Find newly added events (match by title+start)
             const oldKeys = new Set(oldEvents.map(e => e.title + '|' + e.start));
             const added = newEvents.filter(e => !oldKeys.has(e.title + '|' + e.start));
             
+            console.log(\`➕ New events detected: \${added.length}\`);
             if (added.length === 0) {
               console.log('ℹ️ No new events detected');
               process.exit(0);
