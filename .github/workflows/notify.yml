@@ -17,38 +17,42 @@ jobs:
       - name: Setup jq for JSON parsing
         run: sudo apt-get install -y jq
 
-      - name: Extract newly added events
-        id: new-events
+      - name: Decrypt & Extract New Events
+        id: decrypt
+        env:
+          PASSWORD: ${{ secrets.CALENDAR_PASSWORD }}
         run: |
-          # Get current events
-          CURRENT=$(jq -c '.' events.json)
-          
-          # Try to get previous version
-          if git show HEAD~1:events.json &>/dev/null; then
-            PREVIOUS=$(git show HEAD~1:events.json | jq -c '.')
-            # Find events in CURRENT not in PREVIOUS (by title+start as unique key)
-            NEW=$(echo "$CURRENT" | jq -c --argjson prev "$PREVIOUS" '
-              [.[] | select(
-                . as $e | 
-                ($prev | map(.title + .start) | index($e.title + $e.start) | not)
-              )]
-            ')
-          else
-            # First commit: all events are "new"
-            NEW="$CURRENT"
-          fi
-          
-          # Output for next steps
-          echo "events=$NEW" >> $GITHUB_OUTPUT
-          echo "count=$(echo $NEW | jq 'length')" >> $GITHUB_OUTPUT
-          
-          # Debug: print to workflow log (secrets redacted automatically)
-          echo "📊 Found $(echo $NEW | jq 'length') new event(s)"
+          node -e "
+            const crypto = require('crypto');
+            const fs = require('fs');
+            const pw = process.env.PASSWORD;
+            
+            function decrypt(file) {
+              const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+              const key = crypto.pbkdf2Sync(pw, Buffer.from(data.salt, 'hex'), 100000, 32, 'sha256');
+              const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(data.iv, 'hex'));
+              decipher.setAuthTag(Buffer.from(data.authTag, 'hex'));
+              let out = decipher.update(Buffer.from(data.encrypted, 'hex'), 'hex', 'utf8');
+              out += decipher.final('utf8');
+              return JSON.parse(out);
+            }
+
+            let oldEvents = [];
+            try { oldEvents = decrypt('git show HEAD~1:events.enc.json'); } catch(e) {}
+            const newEvents = decrypt('events.enc.json');
+
+            // Find events in new but not in old (match by title + start)
+            const oldKeys = new Set(oldEvents.map(e => e.title + '|' + e.start));
+            const added = newEvents.filter(e => !oldKeys.has(e.title + '|' + e.start));
+            
+            console.log('::set-output name=added::' + JSON.stringify(added));
+            console.log('::set-output name=count::' + added.length);
+          "
 
       - name: Format event dates for email
         id: format-dates
         run: |
-          EVENT='${{ fromJSON(steps.new-events.outputs.events)[0] }}'
+          EVENT='${{ fromJSON(steps.decrypt.outputs.added)[0] }}'
           
           # Helper function: format ISO date to "DD-MM-YYYY at H:MM"
           format_date() {
@@ -84,7 +88,7 @@ jobs:
           echo "when_formatted=$WHEN_TEXT" >> $GITHUB_OUTPUT
 
       - name: Send email for each new event
-        if: steps.new-events.outputs.count != '0' && steps.new-events.outputs.count != 'null'
+        if: fromJSON(steps.decrypt.outputs.count) > 0
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -100,10 +104,10 @@ jobs:
           body: |
             A new event has been added to the Research Group Calendar.
             
-            ${{ fromJSON(steps.new-events.outputs.events)[0].title }}
-            When: ${{ steps.format-dates.outputs.when_formatted }}
-            Type: ${{ fromJSON(steps.new-events.outputs.events)[0].type }}
-            Location: ${{ fromJSON(steps.new-events.outputs.events)[0].location || 'N/A' }}
+            ${{ fromJSON(steps.decrypt.outputs.added)[0].title }}
+            Type: ${{ fromJSON(steps.decrypt.outputs.added)[0].type }}
+            Start: ${{ fromJSON(steps.decrypt.outputs.added)[0].start }}
+            Location: ${{ fromJSON(steps.decrypt.outputs.added)[0].location || 'TBA' }}
             
             👉 View calendar: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
             
@@ -115,11 +119,11 @@ jobs:
               <h2 style="color: #1a73e8; border-bottom: 2px solid #e8f0fe; padding-bottom: 8px;">📅 New Event Added</h2>
               
               <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin: 16px 0;">
-                <p style="margin: 0 0 8px;"><strong>Title:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].title }}</p>
+                <p style="margin: 0 0 8px;"><strong>Title:</strong> ${{ fromJSON(steps.decrypt.outputs.added)[0].title }}</p>
                 <p style="margin: 0 0 8px;"><strong>When:</strong> ${{ steps.format-dates.outputs.when_formatted }}</p>
-                <p style="margin: 0 0 8px;"><strong>Type:</strong> <span style="background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 4px; font-size: 13px;">${{ fromJSON(steps.new-events.outputs.events)[0].type }}</span></p>
-                <p style="margin: 0 0 8px;"><strong>Location:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].location || 'N/A' }}</p>
-                <p style="margin: 0;"><strong>Details:</strong> ${{ fromJSON(steps.new-events.outputs.events)[0].description || 'No additional details.' }}</p>
+                <p style="margin: 0 0 8px;"><strong>Type:</strong> <span style="background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 4px; font-size: 13px;">${{ fromJSON(steps.decrypt.outputs.added)[0].type }}</span></p>
+                <p style="margin: 0 0 8px;"><strong>Location:</strong> ${{ fromJSON(steps.decrypt.outputs.added)[0].location || 'N/A' }}</p>
+                <p style="margin: 0;"><strong>Details:</strong> ${{ fromJSON(steps.decrypt.outputs.added)[0].description || 'No additional details.' }}</p>
               </div>
               
               <p style="text-align: center; margin: 24px 0;">
