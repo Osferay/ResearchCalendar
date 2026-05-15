@@ -25,9 +25,8 @@ jobs:
             const { execSync } = require('child_process');
             const pw = process.env.PASSWORD;
             
-            function decryptFile(filepath) {
-              const raw = execSync(\`git show HEAD:\${filepath}\`).toString().trim();
-              const data = JSON.parse(raw);
+            function decryptFromRaw(rawJson) {
+              const data = JSON.parse(rawJson);
               const key = crypto.pbkdf2Sync(pw, Buffer.from(data.salt, 'hex'), 100000, 32, 'sha256');
               const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(data.iv, 'hex'));
               decipher.setAuthTag(Buffer.from(data.authTag, 'hex'));
@@ -35,23 +34,24 @@ jobs:
               out += decipher.final('utf8');
               return JSON.parse(out);
             }
+
+            const currentRaw = execSync('git show HEAD:events.enc.json').toString().trim();
+            const newEvents = decryptFromRaw(currentRaw);
             
             // Get events from current and previous commit
             let oldEvents = [];
             try {
-              const oldRaw = execSync('git show HEAD~1:events.enc.json').toString().trim();
-              const oldData = JSON.parse(oldRaw);
-              oldEvents = decryptFile('events.enc.json'); // Re-use decrypt logic
+              const prevRaw = execSync('git show HEAD~1:events.enc.json').toString().trim();
+              oldEvents = decryptFromRaw(prevRaw);
             } catch(e) {
-              console.log('ℹ️ No previous events.enc.json found (first commit?)');
+              console.log('ℹ️ First commit or no previous events.enc.json');
             }
             
-            const newEvents = decryptFile('events.enc.json');
             console.log(\`📊 Old events: \${oldEvents.length} | New events: \${newEvents.length}\`);
             
             // Find newly added events (match by title+start)
-            const oldKeys = new Set(oldEvents.map(e => e.title + '|' + e.start));
-            const added = newEvents.filter(e => !oldKeys.has(e.title + '|' + e.start));
+            const oldKeys = new Set(oldEvents.map(e => \`\${e.title.trim()}|\${e.start.trim()}\`));
+            const added = newEvents.filter(e => !oldKeys.has(\`\${e.title.trim()}|\${e.start.trim()}\`));
             
             console.log(\`➕ New events detected: \${added.length}\`);
             if (added.length === 0) {
