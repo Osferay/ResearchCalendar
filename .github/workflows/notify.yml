@@ -86,7 +86,7 @@ jobs:
             fs.appendFileSync(out, \`when=\${when}\\n\`);
             fs.appendFileSync(out, \`location=\${(ev.location||'TBA').replace(/:/g,'')}\\n\`);
             fs.appendFileSync(out, \`attendants=\${attendants.replace(/:/g,'')}\\n\`);
-            fs.appendFileSync(out, \`url=\${url.replace(/:/g,'')}\\n\`);
+            fs.appendFileSync(out, \`url=\${url}\\n\`);
           "
 
       - name: Send email
@@ -124,7 +124,6 @@ jobs:
                 <p style="margin:0 0 8px"><strong>When:</strong> ${{ steps.payload.outputs.when }}</p>
                 <p style="margin:0 0 8px"><strong>Type:</strong> <span style="background:#e8f0fe;color:#1a73e8;padding:2px 8px;border-radius:4px;font-size:13px">${{ steps.payload.outputs.type }}</span></p>
                 <p style="margin:0 0 8px"><strong>Location:</strong> ${{ steps.payload.outputs.location }}</p>
-                <p style="margin:0"><strong>Details:</strong> ${{ steps.payload.outputs.description }}</p>
                 ${{ steps.payload.outputs.attendants && format('<p style="margin:0 0 8px"><strong>Attendants:</strong> {0}</p>', steps.payload.outputs.attendants) }}
                 ${{ steps.payload.outputs.url && format('<p style="margin:0"><strong>Link:</strong> <a href="{0}" style="color:#1a73e8">{0}</a></p>', steps.payload.outputs.url) }}
               </div>
