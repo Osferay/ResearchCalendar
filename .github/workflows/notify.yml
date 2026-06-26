@@ -3,7 +3,6 @@ name: Notify New Events
 on:
   push:
     branches: [main]
-    paths: ['events.enc.json']  # 🔹 FIXED: encrypted file
 
 jobs:
   send-notification:
@@ -14,126 +13,62 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Decrypt, Diff & Format Email Payload
-        id: payload
+      - name: Extract commit message
+        id: msg
         env:
           PASSWORD: ${{ secrets.CALENDAR_PASSWORD }}
         run: |
-          node -e "
-            const crypto = require('crypto');
-            const fs = require('fs');
-            const { execSync } = require('child_process');
-            const pw = process.env.PASSWORD;
-            
-            function decryptFromRaw(rawJson) {
-              const data = JSON.parse(rawJson);
-              const key = crypto.pbkdf2Sync(pw, Buffer.from(data.salt, 'hex'), 100000, 32, 'sha256');
-              const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(data.iv, 'hex'));
-              decipher.setAuthTag(Buffer.from(data.authTag, 'hex'));
-              let out = decipher.update(Buffer.from(data.encrypted, 'hex'), 'hex', 'utf8');
-              out += decipher.final('utf8');
-              return JSON.parse(out);
-            }
+          MSG=$(git log -1 --pretty=%B)
+          echo "full<<EOF" >> $GITHUB_OUTPUT
+          echo "$MSG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Parse NOTIFY block
+        id: parse
+        run: |
+          MSG=$(git log -1 --pretty=%B)
 
-            const currentRaw = execSync('git show HEAD:events.enc.json').toString().trim();
-            const newEvents = decryptFromRaw(currentRaw);
-            
-            // Get events from current and previous commit
-            let oldEvents = [];
-            try {
-              const prevRaw = execSync('git show HEAD~1:events.enc.json').toString().trim();
-              oldEvents = decryptFromRaw(prevRaw);
-            } catch(e) {
-              console.log('ℹ️ First commit or no previous events.enc.json');
-            }
-            
-            console.log(\`📊 Old events: \${oldEvents.length} | New events: \${newEvents.length}\`);
-            
-            // Find newly added events (match by title+start)
-            const oldKeys = new Set(oldEvents.map(e => \`\${e.title.trim()}|\${e.start.trim()}\`));
-            const added = newEvents.filter(e => !oldKeys.has(\`\${e.title.trim()}|\${e.start.trim()}\`));
-            
-            console.log(\`➕ New events detected: \${added.length}\`);
-            if (added.length === 0) {
-              console.log('ℹ️ No new events detected');
-              process.exit(0);
-            }
-            
-            // Format first new event for email (extend loop later if needed)
-            const ev = added[0];
-            const fmt = (iso) => {
-              if (!iso) return 'TBA';
-              const m = iso.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})/);
-              if (m) {
-                const [,y,mo,d,h,mi] = m;
-                return \`\${d}-\${mo}-\${y} at \${parseInt(h)}:\${mi}\`;
-              }
-              return iso.slice(0,10).replace(/-/g,'/');
-            };
-            
-            const when = ev.end ? \`\${fmt(ev.start)} to \${fmt(ev.end)}\` : fmt(ev.start);
-            const type = (ev.type || '').toLowerCase();
+          NOTIFY=$(echo "$MSG" | grep -E '^NOTIFY\s*=' | sed 's/.*=\s*//I' | tr '[:lower:]' '[:upper:]')
 
-            const attendants = (type === 'conference' && Array.isArray(ev.attendants) && ev.attendants.length > 0)
-              ? ev.attendants.join(', ')
-              : '';
-            const url = (type === 'conference' && ev.url) ? ev.url : '';
-            
-            const out = process.env.GITHUB_OUTPUT;
-            fs.appendFileSync(out, \`count=\${added.length}\\n\`);
-            fs.appendFileSync(out, \`title=\${(ev.title||'').replace(/:/g,'')}\\n\`);
-            fs.appendFileSync(out, \`type=\${ev.type}\\n\`);
-            fs.appendFileSync(out, \`when=\${when}\\n\`);
-            fs.appendFileSync(out, \`location=\${(ev.location||'TBA').replace(/:/g,'')}\\n\`);
-            fs.appendFileSync(out, \`attendants=\${attendants.replace(/:/g,'')}\\n\`);
-            fs.appendFileSync(out, \`url=\${url}\\n\`);
-          "
+          if [ "$NOTIFY" != "TRUE" ]; then
+            echo "send=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          TITLE=$(echo "$MSG" | grep -E '^TITLE\s*=' | sed 's/.*=\s*//')
+
+          BODY=$(echo "$MSG" | awk '
+            BEGIN {capture=0}
+            /^BODY\s*=/ {capture=1; sub(/^BODY\s*=\s*/, ""); print; next}
+            capture==1 {print}
+          ')
+
+          echo "send=true" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Send email
-        if: steps.payload.outputs.count != '0' && steps.payload.outputs.count != ''
+        if: steps.parse.outputs.send == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "New Event: ${{ steps.payload.outputs.title }}"
-          to: ${{ secrets.RECIPIENT_EMAIL }}
+          subject: ${{ steps.parse.outputs.title }}
+          to: oscar00ayala@gmail.com
           from: "Eick Group Calendar <${{ secrets.GMAIL_USER }}>"
           reply_to: "${{ secrets.GMAIL_USER }}"
           
           body: |
-            A new event has been added to the Group Calendar.
-            
-            ${{ steps.payload.outputs.title }}
-            Type: ${{ steps.payload.outputs.type }}
-            When: ${{ steps.payload.outputs.when }}
-            Location: ${{ steps.payload.outputs.location }}
-            ${{ steps.payload.outputs.attendants && format('Attendants: {0}', steps.payload.outputs.attendants) }}
-            ${{ steps.payload.outputs.url && format('Link: {0}', steps.payload.outputs.url) }}
-            
-            View calendar: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-            
-            — Calendar Bot
+            Dear colleagues,
 
-          html_body: |
-            <div style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;color:#333">
-              <h2 style="color:#1a73e8;border-bottom:2px solid #e8f0fe;padding-bottom:8px">New Event Added</h2>
-              <div style="background:#f8f9fa;padding:16px;border-radius:8px;margin:16px 0">
-                <p style="margin:0 0 8px"><strong>Title:</strong> ${{ steps.payload.outputs.title }}</p>
-                <p style="margin:0 0 8px"><strong>When:</strong> ${{ steps.payload.outputs.when }}</p>
-                <p style="margin:0 0 8px"><strong>Type:</strong> <span style="background:#e8f0fe;color:#1a73e8;padding:2px 8px;border-radius:4px;font-size:13px">${{ steps.payload.outputs.type }}</span></p>
-                <p style="margin:0 0 8px"><strong>Location:</strong> ${{ steps.payload.outputs.location }}</p>
-                ${{ steps.payload.outputs.attendants && format('<p style="margin:0 0 8px"><strong>Attendants:</strong> {0}</p>', steps.payload.outputs.attendants) }}
-                ${{ steps.payload.outputs.url && format('<p style="margin:0"><strong>Link:</strong> <a href="{0}" style="color:#1a73e8">{0}</a></p>', steps.payload.outputs.url) }}
-              </div>
-              <p style="text-align:center;margin:24px 0">
-                <a href="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" 
-                   style="background:#1a73e8;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:500">
-                  View calendar
-                </a>
-              </p>
-              <p style="color:#666;font-size:12px;border-top:1px solid #eee;padding-top:16px">
-                You are receiving this notification as a member of the research group.
-              </p>
-            </div>
+            ${{ steps.parse.outputs.body }}
+
+            You can view the complete research calendar here: https://osferay.github.io/ResearchCalendar/
+
+            Kind Regards,
+            Óscar.
