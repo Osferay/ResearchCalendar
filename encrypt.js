@@ -16,4 +16,4 @@ const authTag = cipher.getAuthTag().toString('hex');
 
 const payload = { salt: salt.toString('hex'), iv: iv.toString('hex'), authTag, encrypted };
 fs.writeFileSync('events.enc.json', JSON.stringify(payload));
-console.log('✅ Encrypted to events.enc.json');
+console.log('Encrypted to events.enc.json');

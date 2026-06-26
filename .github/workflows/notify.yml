@@ -59,7 +59,7 @@ jobs:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: ${{ steps.parse.outputs.title }}
-          to: oscar00ayala@gmail.com
+          to: ${{ secrets.RECIPIENT_EMAIL }}
           from: "Eick Group Calendar <${{ secrets.GMAIL_USER }}>"
           reply_to: "${{ secrets.GMAIL_USER }}"
           
